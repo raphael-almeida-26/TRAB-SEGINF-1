@@ -1,0 +1,1060 @@
+{\rtf1\ansi\ansicpg1252\deff0\nouicompat{\fonttbl{\f0\fnil\fcharset0 Calibri;}}
+{\colortbl ;\red192\green192\blue192;}
+{\*\generator Riched20 10.0.19041}\viewkind4\uc1 
+\pard\sl240\slmult1\qj\highlight1\b\f0\fs22\lang22 db.php\par
+\b0\par
+\highlight0 <?php\par
+// Configura\'e7\'f5es do banco de dados\par
+$host = 'localhost';\par
+$username = 'root';\par
+$password = '';\par
+$database = 'seguro';\par
+$port = 7306;\par
+\par
+// Conex\'e3o com o banco de dados usando MySQLi\par
+$mysqli = new mysqli($host, $username, $password, $database, $port);\par
+\par
+// Verifica a conex\'e3o\par
+if ($mysqli->connect_error) \{\par
+    die("Erro na conex\'e3o: " . $mysqli->connect_error);\par
+\}\par
+\par
+// Fun\'e7\'e3o para sanitizar entradas e prevenir SQL injection\par
+if (!function_exists('sanitize_input')) \{\par
+    function sanitize_input($conn, $data) \{\par
+        return mysqli_real_escape_string($conn, $data);\par
+    \}\par
+\}\par
+?>\par
+----------------------------------------------------------\par
+\highlight1\b .htaccess\par
+\highlight0\b0\par
+RewriteEngine On\par
+RewriteBase /backupApp/\par
+\par
+# Permitir acesso aos arquivos e pastas existentes\par
+RewriteCond %\{REQUEST_FILENAME\} !-f\par
+RewriteCond %\{REQUEST_FILENAME\} !-d\par
+\par
+# Bloquear acesso \'e0 pasta 'backups'\par
+RewriteRule ^backups/ - [F,L]\par
+\par
+# INSERIDAS\par
+# Impedir listagem de diret\'f3rio\par
+Options -Indexes\par
+\par
+# Definir CSP\par
+# Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none';"\par
+<IfModule mod_headers.c>\par
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none';"\par
+</IfModule>\par
+\par
+# Ativar o X-Frame-Options para prote\'e7\'e3o contra clickjacking\par
+Header always append X-Frame-Options SAMEORIGIN\par
+\par
+# Impedir Clickjacking\par
+Header set X-Frame-Options "DENY"\par
+\par
+# Limita\'e7\'e3o de taxa de requisi\'e7\'f5es (mod_evasive)\par
+<IfModule mod_evasive20.c>\par
+    DOSHashTableSize 3097\par
+    DOSPageCount 2\par
+    DOSSiteCount 50\par
+    DOSPageInterval 1\par
+    DOSSiteInterval 1\par
+    DOSBlockingPeriod 10\par
+    DOSEmailNotify admin@example.com\par
+    DOSLogDir "/var/log/mod_evasive"\par
+    DOSWhitelist 127.0.0.1\par
+</IfModule>\par
+\par
+# Bloqueio de IPs maliciosos\par
+<RequireAll>\par
+    Require all granted\par
+    # Bloquear IPs espec\'edficos\par
+    Require not ip 192.168.1.100\par
+    Require not ip 10.0.0.0/8\par
+</RequireAll>\par
+\par
+# Configura\'e7\'e3o de cache e compacta\'e7\'e3o\par
+<IfModule mod_deflate.c>\par
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml\par
+</IfModule>\par
+----------------------------------------------------------\par
+\highlight1\b index.php\par
+\highlight0\b0\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>P\'e1gina Inicial</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .container \{\par
+            max-width: 600px;\par
+            margin: 0 auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);\par
+        \}\par
+\par
+        .container h2 \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        .container a \{\par
+            display: block;\par
+            margin-bottom: 10px;\par
+            padding: 10px 20px;\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            text-decoration: none;\par
+            border-radius: 3px;\par
+            font-size: 18px;\par
+        \}\par
+\par
+        .container a:hover \{\par
+            background-color: #45a049;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <div class="container">\par
+        <h2>Bem-vindo!</h2>\par
+        <a href="login.php">Login</a>\par
+        <a href="register.php">Registrar</a>\par
+    </div>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b register.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+\par
+require_once 'db.php';\par
+\par
+// Gera o token CSRF se n\'e3o existir\par
+if (empty($_SESSION['csrf_token'])) \{\par
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));\par
+\}\par
+\par
+if ($_SERVER['REQUEST_METHOD'] == 'POST') \{\par
+    // Sanitiza e valida os dados do formul\'e1rio\par
+    $username = sanitize_input($mysqli, $_POST['username']);\par
+    $email = sanitize_input($mysqli, $_POST['email']);\par
+    $senha = sanitize_input($mysqli, $_POST['senha']);\par
+    $confirm_senha = sanitize_input($mysqli, $_POST['confirm_senha']);\par
+    $csrf_token = $_POST['csrf_token'];\par
+\par
+    // Verifica o token CSRF\par
+    if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) \{\par
+        $_SESSION['error'] = "Token CSRF inv\'e1lido.";\par
+        header('Location: register.php');\par
+        exit();\par
+    \}\par
+\par
+    if ($senha !== $confirm_senha) \{\par
+        $_SESSION['error'] = "As senhas n\'e3o coincidem. Por favor, tente novamente.";\par
+        header('Location: register.php');\par
+        exit();\par
+    \}\par
+\par
+    $stmt = $mysqli->prepare("SELECT * FROM usuarios WHERE username=? OR email=?");\par
+    $stmt->bind_param("ss", $username, $email);\par
+    $stmt->execute();\par
+    $result_check_user = $stmt->get_result();\par
+\par
+    if ($result_check_user->num_rows > 0) \{\par
+        $_SESSION['error'] = "Usu\'e1rio ou e-mail j\'e1 registrado. Por favor, escolha outro.";\par
+        header('Location: register.php');\par
+        exit();\par
+    \}\par
+\par
+    $senha_hash = password_hash($senha, PASSWORD_DEFAULT);\par
+\par
+    $stmt = $mysqli->prepare("INSERT INTO usuarios (username, email, senha) VALUES (?, ?, ?)");\par
+    $stmt->bind_param("sss", $username, $email, $senha_hash);\par
+\par
+    if ($stmt->execute()) \{\par
+        $_SESSION['success'] = "Usu\'e1rio registrado com sucesso!";\par
+\par
+        if (isset($_POST['autenticacao_duas_etapas']) && $_POST['autenticacao_duas_etapas'] == 1) \{\par
+            $userid = $mysqli->insert_id;\par
+            $codigo_autenticacao = rand(100000, 999999);\par
+\par
+            $stmt = $mysqli->prepare("UPDATE usuarios SET autenticacao_habilitada=1, codigo_autenticacao=? WHERE id=?");\par
+            $stmt->bind_param("ii", $codigo_autenticacao, $userid);\par
+            $stmt->execute();\par
+\par
+            $_SESSION['message'] = "Autentica\'e7\'e3o em duas etapas habilitada. Um c\'f3digo de autentica\'e7\'e3o foi enviado para voc\'ea.";\par
+            header('Location: autenticacao.php');\par
+            exit();\par
+        \} else \{\par
+            header('Location: login.php');\par
+            exit();\par
+        \}\par
+    \} else \{\par
+        $_SESSION['error'] = "Erro ao registrar o usu\'e1rio: " . $stmt->error;\par
+    \}\par
+\}\par
+\par
+$mysqli->close();\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Registro de Usu\'e1rio</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .register-container \{\par
+            max-width: 600px;\par
+            margin: 0 auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);\par
+        \}\par
+\par
+        .register-container h2 \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        .register-container form \{\par
+            text-align: left;\par
+        \}\par
+\par
+        .register-container label \{\par
+            display: block;\par
+            margin-bottom: 10px;\par
+        \}\par
+\par
+        .register-container input[type="text"],\par
+        .register-container input[type="email"],\par
+        .register-container input[type="password"],\par
+        .register-container input[type="checkbox"] \{\par
+            width: 100%;\par
+            padding: 10px;\par
+            margin-bottom: 15px;\par
+            border: 1px solid #ccc;\par
+            border-radius: 3px;\par
+            box-sizing: border-box;\par
+            font-size: 16px;\par
+        \}\par
+\par
+        .register-container input[type="submit"],\par
+        .register-container .btn-back \{\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            padding: 15px 20px;\par
+            border: none;\par
+            border-radius: 3px;\par
+            cursor: pointer;\par
+            font-size: 16px;\par
+            margin-bottom: 10px;\par
+            width: 100%;\par
+        \}\par
+\par
+        .register-container .btn-back \{\par
+            background-color: #d9534f;\par
+        \}\par
+\par
+        .register-container input[type="submit"]:hover,\par
+        .register-container .btn-back:hover \{\par
+            opacity: 0.9;\par
+        \}\par
+\par
+        .register-container #mensagem-senha \{\par
+            display: block;\par
+            margin-top: 5px;\par
+            font-size: 14px;\par
+        \}\par
+\par
+        .register-container #mensagem-senha.red \{\par
+            color: red;\par
+        \}\par
+\par
+        .register-container #mensagem-senha.green \{\par
+            color: green;\par
+        \}\par
+    </style>\par
+    <script>\par
+        function verificarSenha() \{\par
+            var senha = document.getElementById('senha').value;\par
+            var confirmSenha = document.getElementById('confirm_senha').value;\par
+            var mensagem = document.getElementById('mensagem-senha');\par
+            var forte = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]\{8,\}$/;\par
+\par
+            if (senha !== confirmSenha) \{\par
+                mensagem.className = 'red';\par
+                mensagem.textContent = 'As senhas n\'e3o coincidem.';\par
+                return false;\par
+            \}\par
+\par
+            if (forte.test(senha)) \{\par
+                mensagem.className = 'green';\par
+                mensagem.textContent = 'Senha forte.';\par
+                return true;\par
+            \} else \{\par
+                mensagem.className = 'red';\par
+                mensagem.textContent = 'A senha deve ter pelo menos 8 caracteres, incluindo letras mai\'fasculas, min\'fasculas, n\'fameros e caracteres especiais.';\par
+                return false;\par
+            \}\par
+        \}\par
+    </script>\par
+</head>\par
+<body>\par
+    <div class="register-container">\par
+        <h2>Registro de Usu\'e1rio</h2>\par
+        <?php if (isset($_SESSION['error'])): ?>\par
+            <p style="color: red;"><?php echo $_SESSION['error']; ?></p>\par
+            <?php unset($_SESSION['error']); ?>\par
+        <?php endif; ?>\par
+        <?php if (isset($_SESSION['success'])): ?>\par
+            <p style="color: green;"><?php echo $_SESSION['success']; ?></p>\par
+            <?php unset($_SESSION['success']); ?>\par
+        <?php endif; ?>\par
+        <form action="register.php" method="post" onsubmit="return verificarSenha();">\par
+            <label for="username">Nome de Usu\'e1rio:</label><br>\par
+            <input type="text" id="username" name="username" required><br><br>\par
+            <label for="email">E-mail:</label><br>\par
+            <input type="email" id="email" name="email" required><br><br>\par
+            <label for="senha">Senha:</label><br>\par
+            <input type="password" id="senha" name="senha" required oninput="verificarSenha();"><br><br>\par
+            <label for="confirm_senha">Confirme a Senha:</label><br>\par
+            <input type="password" id="confirm_senha" name="confirm_senha" required oninput="verificarSenha();"><br>\par
+            <span id="mensagem-senha"></span><br><br>\par
+            <label>\par
+                <input type="checkbox" name="autenticacao_duas_etapas" value="1"> Habilitar Autentica\'e7\'e3o em Duas Etapas\par
+            </label><br><br>\par
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">\par
+            <input type="submit" value="Registrar">\par
+        </form>\par
+        <form action="index.php">\par
+            <button type="submit" class="btn-back">Voltar para Index</button>\par
+        </form>\par
+    </div>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b login.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+require_once 'db.php';\par
+\par
+// Gera o token CSRF se n\'e3o existir\par
+if (empty($_SESSION['csrf_token'])) \{\par
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));\par
+\}\par
+\par
+if ($_SERVER['REQUEST_METHOD'] == 'POST') \{\par
+    // Sanitiza e valida os dados do formul\'e1rio\par
+    $username = sanitize_input($mysqli, $_POST['username']);\par
+    $password = sanitize_input($mysqli, $_POST['senha']);\par
+    $csrf_token = $_POST['csrf_token'];\par
+\par
+    // Verifica o token CSRF\par
+    if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) \{\par
+        $_SESSION['error'] = "Token CSRF inv\'e1lido.";\par
+        header('Location: login.php');\par
+        exit();\par
+    \}\par
+\par
+    // Prepara a query usando prepared statements\par
+    $stmt = $mysqli->prepare("SELECT id, senha, autenticacao_habilitada FROM usuarios WHERE username=?");\par
+    $stmt->bind_param("s", $username);\par
+    $stmt->execute();\par
+    $result = $stmt->get_result();\par
+\par
+    if ($result->num_rows == 1) \{\par
+        $user = $result->fetch_assoc();\par
+\par
+        if (password_verify($password, $user['senha'])) \{\par
+            $_SESSION['userid'] = $user['id'];\par
+            $_SESSION['username'] = $username;\par
+\par
+            // Regenera o token CSRF ap\'f3s login bem-sucedido\par
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));\par
+\par
+            if ($user['autenticacao_habilitada']) \{\par
+                header('Location: autenticacao.php');\par
+            \} else \{\par
+                header('Location: dashboard.php');\par
+            \}\par
+            exit();\par
+        \} else \{\par
+            $_SESSION['error'] = "Credenciais incorretas. Por favor, tente novamente.";\par
+        \}\par
+    \} else \{\par
+        $_SESSION['error'] = "Usu\'e1rio n\'e3o encontrado.";\par
+    \}\par
+\}\par
+\par
+$mysqli->close();\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Login</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .login-container \{\par
+            max-width: 300px;\par
+            margin: 0 auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);\par
+        \}\par
+\par
+        .login-container h2 \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        .login-container form \{\par
+            text-align: left;\par
+        \}\par
+\par
+        .login-container label \{\par
+            display: block;\par
+            margin-bottom: 10px;\par
+        \}\par
+\par
+        .login-container input[type="text"],\par
+        .login-container input[type="password"] \{\par
+            width: calc(100% - 20px);\par
+            padding: 10px;\par
+            margin-bottom: 15px;\par
+            border: 1px solid #ccc;\par
+            border-radius: 3px;\par
+        \}\par
+\par
+        .login-container input[type="submit"],\par
+        .login-container .btn-back \{\par
+            width: 100%;\par
+            padding: 10px;\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            border: none;\par
+            border-radius: 3px;\par
+            cursor: pointer;\par
+            font-size: 16px;\par
+            margin-bottom: 10px;\par
+        \}\par
+\par
+        .login-container .btn-back \{\par
+            background-color: #d9534f;\par
+        \}\par
+\par
+        .login-container input[type="submit"]:hover,\par
+        .login-container .btn-back:hover \{\par
+            opacity: 0.9;\par
+        \}\par
+\par
+        .error-message \{\par
+            color: red;\par
+            margin-top: 10px;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <div class="login-container">\par
+        <h2>Login</h2>\par
+        <?php if (isset($_SESSION['error'])): ?>\par
+            <p class="error-message"><?php echo $_SESSION['error']; ?></p>\par
+            <?php unset($_SESSION['error']); ?>\par
+        <?php endif; ?>\par
+        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">\par
+            <label for="username">Nome de Usu\'e1rio:</label><br>\par
+            <input type="text" id="username" name="username" required><br><br>\par
+            <label for="senha">Senha:</label><br>\par
+            <input type="password" id="senha" name="senha" required><br><br>\par
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">\par
+            <input type="submit" value="Login">\par
+        </form>\par
+        <form action="index.php">\par
+            <button type="submit" class="btn-back">Voltar para Index</button>\par
+        </form>\par
+    </div>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b autenticacao.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+\par
+if (!isset($_SESSION['userid'])) \{\par
+    header('Location: index.php');\par
+    exit();\par
+\}\par
+\par
+require_once 'db.php';\par
+\par
+$userid = $_SESSION['userid'];\par
+\par
+// Verifica se a autentica\'e7\'e3o em duas etapas j\'e1 est\'e1 habilitada\par
+$sql_check_auth = "SELECT autenticacao_habilitada, codigo_autenticacao FROM usuarios WHERE id=?";\par
+$stmt_check_auth = $mysqli->prepare($sql_check_auth);\par
+$stmt_check_auth->bind_param("i", $userid);\par
+$stmt_check_auth->execute();\par
+$result_check_auth = $stmt_check_auth->get_result();\par
+\par
+if ($result_check_auth->num_rows > 0) \{\par
+    $row = $result_check_auth->fetch_assoc();\par
+    if (!$row['autenticacao_habilitada']) \{\par
+        // Se a autentica\'e7\'e3o em duas etapas n\'e3o estiver habilitada, redireciona para o dashboard\par
+        $_SESSION['message'] = "Autentica\'e7\'e3o em duas etapas n\'e3o est\'e1 habilitada.";\par
+        header('Location: dashboard.php');\par
+        exit();\par
+    \}\par
+\par
+    // Se a autentica\'e7\'e3o em duas etapas estiver habilitada, gera um novo c\'f3digo de autentica\'e7\'e3o\par
+    $codigo_autenticacao = $row['codigo_autenticacao'];\par
+    if (!$codigo_autenticacao) \{\par
+        $codigo_autenticacao = rand(100000, 999999);\par
+        $sql_update = "UPDATE usuarios SET codigo_autenticacao=? WHERE id=?";\par
+        $stmt_update = $mysqli->prepare($sql_update);\par
+        $stmt_update->bind_param("ii", $codigo_autenticacao, $userid);\par
+        $stmt_update->execute();\par
+        $stmt_update->close();\par
+    \}\par
+\} else \{\par
+    $_SESSION['error'] = "Erro ao verificar autentica\'e7\'e3o em duas etapas.";\par
+    header('Location: dashboard.php');\par
+    exit();\par
+\}\par
+\par
+$stmt_check_auth->close();\par
+$mysqli->close();\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Autentica\'e7\'e3o em Duas Etapas</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            padding: 20px;\par
+        \}\par
+\par
+        .container \{\par
+            max-width: 600px;\par
+            margin: auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);\par
+        \}\par
+\par
+        .btn \{\par
+            display: inline-block;\par
+            padding: 10px 20px;\par
+            font-size: 14px;\par
+            font-weight: bold;\par
+            color: #fff;\par
+            background-color: #007bff;\par
+            border: none;\par
+            border-radius: 3px;\par
+            cursor: pointer;\par
+        \}\par
+\par
+        .btn-secondary \{\par
+            background-color: #6c757d;\par
+        \}\par
+\par
+        .form-group \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        label \{\par
+            display: block;\par
+            font-weight: bold;\par
+            margin-bottom: 5px;\par
+        \}\par
+\par
+        input[type="text"] \{\par
+            width: 100%;\par
+            padding: 10px;\par
+            font-size: 14px;\par
+            border: 1px solid #ccc;\par
+            border-radius: 3px;\par
+        \}\par
+\par
+        .modal \{\par
+            display: none;\par
+            position: fixed;\par
+            z-index: 1;\par
+            left: 0;\par
+            top: 0;\par
+            width: 100%;\par
+            height: 100%;\par
+            overflow: auto;\par
+            background-color: rgba(0,0,0,0.4);\par
+        \}\par
+\par
+        .modal-content \{\par
+            background-color: #fefefe;\par
+            margin: 10% auto;\par
+            padding: 20px;\par
+            border: 1px solid #888;\par
+            width: 80%;\par
+            border-radius: 5px;\par
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);\par
+        \}\par
+\par
+        .close \{\par
+            color: #aaa;\par
+            float: right;\par
+            font-size: 28px;\par
+            font-weight: bold;\par
+        \}\par
+\par
+        .close:hover,\par
+        .close:focus \{\par
+            color: black;\par
+            text-decoration: none;\par
+            cursor: pointer;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <div class="container">\par
+        <h2>Autentica\'e7\'e3o em Duas Etapas</h2>\par
+        <?php if (isset($_SESSION['error'])): ?>\par
+            <p style="color: red;"><?php echo $_SESSION['error']; ?></p>\par
+            <?php unset($_SESSION['error']); ?>\par
+        <?php endif; ?>\par
+        <?php if (isset($_SESSION['message'])): ?>\par
+            <p style="color: green;"><?php echo $_SESSION['message']; ?></p>\par
+            <?php unset($_SESSION['message']); ?>\par
+        <?php endif; ?>\par
+        <p>Um c\'f3digo de autentica\'e7\'e3o foi enviado para voc\'ea. Por favor, insira o c\'f3digo abaixo:</p>\par
+        <form action="verificar_codigo.php" method="post">\par
+            <div class="form-group">\par
+                <label for="codigo">C\'f3digo de Autentica\'e7\'e3o:</label>\par
+                <input type="text" id="codigo" name="codigo" required>\par
+            </div>\par
+            <div class="form-group">\par
+                <input type="submit" value="Verificar C\'f3digo" class="btn">\par
+                <button type="button" class="btn btn-secondary" id="showCodigo">Mostrar C\'f3digo de Autentica\'e7\'e3o</button>\par
+            </div>\par
+        </form>\par
+    </div>\par
+\par
+    <!-- Modal -->\par
+    <div id="modalCodigo" class="modal">\par
+        <div class="modal-content">\par
+            <span class="close">&times;</span>\par
+            <h3>C\'f3digo de Autentica\'e7\'e3o</h3>\par
+            <p>O c\'f3digo de autentica\'e7\'e3o \'e9: <strong><?php echo $codigo_autenticacao; ?></strong></p>\par
+            <p>Use este c\'f3digo para completar o processo de autentica\'e7\'e3o em duas etapas.</p>\par
+        </div>\par
+    </div>\par
+\par
+    <script>\par
+        // Mostrar modal ao clicar no bot\'e3o\par
+        document.getElementById('showCodigo').addEventListener('click', function() \{\par
+            var modal = document.getElementById('modalCodigo');\par
+            modal.style.display = 'block';\par
+\par
+            // Fechar modal ao clicar no bot\'e3o de fechar\par
+            var closeBtn = document.getElementsByClassName('close')[0];\par
+            closeBtn.addEventListener('click', function() \{\par
+                modal.style.display = 'none';\par
+            \});\par
+\par
+            // Fechar modal ao clicar fora do conte\'fado do modal\par
+            window.addEventListener('click', function(event) \{\par
+                if (event.target == modal) \{\par
+                    modal.style.display = 'none';\par
+                \}\par
+            \});\par
+        \});\par
+    </script>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b verificar_codigo.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+\par
+if (!isset($_SESSION['userid'])) \{\par
+    header('Location: index.php');\par
+    exit();\par
+\}\par
+\par
+require_once 'db.php';\par
+\par
+$userid = $_SESSION['userid'];\par
+$codigo = isset($_POST['codigo']) ? $_POST['codigo'] : null;\par
+\par
+// Verificar se o formul\'e1rio foi submetido para tentar novamente\par
+if (isset($_POST['tentar_novamente'])) \{\par
+    // Limpar a mensagem de erro anterior e permitir nova tentativa\par
+    unset($_SESSION['error']);\par
+    header('Location: autenticacao.php'); // Redireciona para autenticacao.php para tentar novamente\par
+    exit();\par
+\}\par
+\par
+// Verificar se o formul\'e1rio foi submetido para abortar\par
+if (isset($_POST['abortar'])) \{\par
+    header('Location: index.php'); // Redireciona para index.php ao abortar\par
+    exit();\par
+\}\par
+\par
+// Verificar se o c\'f3digo foi submetido e realizar a verifica\'e7\'e3o\par
+if ($codigo !== null) \{\par
+    // Verifica c\'f3digo de autentica\'e7\'e3o no banco de dados de forma segura com prepared statement\par
+    $sql = "SELECT codigo_autenticacao FROM usuarios WHERE id=?";\par
+    $stmt = $mysqli->prepare($sql);\par
+    $stmt->bind_param("i", $userid);\par
+    $stmt->execute();\par
+    $result = $stmt->get_result();\par
+\par
+    if ($result->num_rows > 0) \{\par
+        $row = $result->fetch_assoc();\par
+        $codigo_autenticacao_bd = $row['codigo_autenticacao'];\par
+\par
+        if ($codigo == $codigo_autenticacao_bd) \{\par
+            // C\'f3digo correto, conclui autentica\'e7\'e3o em duas etapas de forma segura com prepared statement\par
+            $sql_update = "UPDATE usuarios SET codigo_autenticacao=NULL WHERE id=?";\par
+            $stmt_update = $mysqli->prepare($sql_update);\par
+            $stmt_update->bind_param("i", $userid);\par
+\par
+            if ($stmt_update->execute()) \{\par
+                $_SESSION['message'] = "Autentica\'e7\'e3o em duas etapas conclu\'edda!";\par
+                header('Location: dashboard.php');\par
+                exit();\par
+            \} else \{\par
+                $_SESSION['error'] = "Erro ao concluir autentica\'e7\'e3o em duas etapas: " . $mysqli->error;\par
+            \}\par
+\par
+            $stmt_update->close();\par
+        \} else \{\par
+            $_SESSION['error'] = "C\'f3digo de autentica\'e7\'e3o incorreto!";\par
+            $_SESSION['show_retry_buttons'] = true; // Definir flag para mostrar bot\'f5es de tentar novamente e abortar\par
+        \}\par
+    \} else \{\par
+        $_SESSION['error'] = "Erro ao verificar c\'f3digo de autentica\'e7\'e3o.";\par
+    \}\par
+\par
+    $stmt->close();\par
+\}\par
+\par
+$mysqli->close();\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Verificar C\'f3digo de Autentica\'e7\'e3o</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .error-message \{\par
+            color: red;\par
+            margin-bottom: 10px;\par
+        \}\par
+\par
+        .success-message \{\par
+            color: green;\par
+            margin-bottom: 10px;\par
+        \}\par
+\par
+        .retry-buttons \{\par
+            margin-top: 20px;\par
+        \}\par
+\par
+        .retry-buttons input[type="submit"] \{\par
+            padding: 10px 20px;\par
+            margin: 10px;\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            border: none;\par
+            border-radius: 3px;\par
+            cursor: pointer;\par
+            font-size: 16px;\par
+        \}\par
+\par
+        .retry-buttons input[type="submit"]:hover \{\par
+            background-color: #45a049;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <h2>Verificar C\'f3digo de Autentica\'e7\'e3o</h2>\par
+    <?php if (isset($_SESSION['error'])): ?>\par
+        <p class="error-message"><?php echo $_SESSION['error']; ?></p>\par
+        <?php if (isset($_SESSION['show_retry_buttons']) && $_SESSION['show_retry_buttons']): ?>\par
+            <form class="retry-buttons" method="post">\par
+                <input type="submit" name="abortar" value="Abortar">\par
+                <input type="submit" name="tentar_novamente" value="Tentar Novamente">\par
+                <input type="hidden" name="codigo" value="<?php echo htmlspecialchars($codigo); ?>">\par
+            </form>\par
+        <?php endif; ?>\par
+        <?php unset($_SESSION['error']); ?>\par
+        <?php unset($_SESSION['show_retry_buttons']); ?>\par
+    <?php endif; ?>\par
+    <?php if (isset($_SESSION['message'])): ?>\par
+        <p class="success-message"><?php echo $_SESSION['message']; ?></p>\par
+        <?php unset($_SESSION['message']); ?>\par
+    <?php endif; ?>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b dashboard.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+\par
+// Verificar se o usu\'e1rio est\'e1 autenticado\par
+if (!isset($_SESSION['username'])) \{\par
+    header("Location: login.php");\par
+    exit();\par
+\}\par
+\par
+// Verificar CSRF token se o m\'e9todo for POST\par
+if ($_SERVER["REQUEST_METHOD"] == "POST") \{\par
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) \{\par
+        die("A\'e7\'e3o n\'e3o autorizada.");\par
+    \}\par
+\}\par
+\par
+// Incluir o arquivo de conex\'e3o com o banco de dados\par
+require_once 'db.php';\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Dashboard</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .dashboard-container \{\par
+            max-width: 600px;\par
+            margin: 0 auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);\par
+        \}\par
+\par
+        .dashboard-container h2 \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        .dashboard-container a \{\par
+            display: inline-block;\par
+            padding: 10px 20px;\par
+            margin: 10px;\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            text-decoration: none;\par
+            border-radius: 3px;\par
+            font-size: 16px;\par
+        \}\par
+\par
+        .dashboard-container a:hover \{\par
+            background-color: #45a049;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <div class="dashboard-container">\par
+        <h2>Dashboard</h2>\par
+        <p>Bem-vindo ao dashboard, <?php echo $_SESSION['username']; ?>!</p>\par
+        <a href="criar_backup.php">Criar Backup</a><br><br>\par
+        <a href="logout.php">Logout</a>\par
+    </div>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b criar_backup.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+\par
+// Verificar se o usu\'e1rio est\'e1 autenticado\par
+if (!isset($_SESSION['userid'])) \{\par
+    header('Location: index.php');\par
+    exit();\par
+\}\par
+\par
+require_once 'db.php';\par
+\par
+// Verificar CSRF token\par
+if ($_SERVER["REQUEST_METHOD"] == "POST") \{\par
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) \{\par
+        die("A\'e7\'e3o n\'e3o autorizada.");\par
+    \}\par
+\par
+    // Define o nome do arquivo de backup\par
+    $backup_file = 'backup_' . date('Y-m-d_H-i-s') . '.csv';\par
+    $backup_path = __DIR__ . '/backups/' . $backup_file;\par
+\par
+    // Certifique-se de que a pasta 'backups' existe\par
+    if (!is_dir(__DIR__ . '/backups')) \{\par
+        mkdir(__DIR__ . '/backups', 0755, true);\par
+    \}\par
+\par
+    // Abre o arquivo para escrita\par
+    $fp = fopen($backup_path, 'w');\par
+\par
+    // Verifica se o arquivo foi aberto com sucesso\par
+    if ($fp === false) \{\par
+        echo "Erro ao criar o arquivo de backup.";\par
+        exit();\par
+    \}\par
+\par
+    // Consulta para selecionar todos os dados da tabela 'usuarios'\par
+    $query = "SELECT * FROM usuarios";\par
+    $result = $mysqli->query($query);\par
+\par
+    // Verifica se a consulta foi executada com sucesso\par
+    if ($result === false) \{\par
+        echo "Erro ao executar a consulta.";\par
+        fclose($fp);\par
+        exit();\par
+    \}\par
+\par
+    // Obt\'e9m os nomes das colunas\par
+    $fields = $result->fetch_fields();\par
+    $headers = [];\par
+    foreach ($fields as $field) \{\par
+        $headers[] = $field->name;\par
+    \}\par
+\par
+    // Escreve os nomes das colunas no arquivo CSV\par
+    fputcsv($fp, $headers);\par
+\par
+    // Escreve os dados no arquivo CSV\par
+    while ($row = $result->fetch_assoc()) \{\par
+        fputcsv($fp, $row);\par
+    \}\par
+\par
+    // Fecha o arquivo e a conex\'e3o com o banco de dados\par
+    fclose($fp);\par
+    $mysqli->close();\par
+\par
+    $_SESSION['message'] = "Backup criado com sucesso: <a href='backups/$backup_file'>$backup_file</a>";\par
+    header('Location: criar_backup.php'); // Redireciona para evitar reenvio do formul\'e1rio\par
+    exit();\par
+\}\par
+\par
+// Gera\'e7\'e3o do token CSRF\par
+$_SESSION['csrf_token'] = bin2hex(random_bytes(32));\par
+?>\par
+\par
+<!DOCTYPE html>\par
+<html lang="pt-BR">\par
+<head>\par
+    <meta charset="UTF-8">\par
+    <title>Criar Backup</title>\par
+    <style>\par
+        body \{\par
+            font-family: Arial, sans-serif;\par
+            background-color: #f0f0f0;\par
+            text-align: center;\par
+            padding-top: 50px;\par
+        \}\par
+\par
+        .backup-container \{\par
+            max-width: 600px;\par
+            margin: 0 auto;\par
+            background-color: #fff;\par
+            padding: 20px;\par
+            border-radius: 5px;\par
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);\par
+        \}\par
+\par
+        .backup-container h2 \{\par
+            margin-bottom: 20px;\par
+        \}\par
+\par
+        .backup-container a \{\par
+            display: inline-block;\par
+            padding: 10px 20px;\par
+            margin: 10px;\par
+            background-color: #4CAF50;\par
+            color: white;\par
+            text-decoration: none;\par
+            border-radius: 3px;\par
+            font-size: 16px;\par
+        \}\par
+\par
+        .backup-container a:hover \{\par
+            background-color: #45a049;\par
+        \}\par
+    </style>\par
+</head>\par
+<body>\par
+    <div class="backup-container">\par
+        <h2>Criar Backup</h2>\par
+        <?php if (isset($_SESSION['message'])): ?>\par
+            <p style="color: green;"><?php echo $_SESSION['message']; ?></p>\par
+            <?php unset($_SESSION['message']); ?>\par
+        <?php endif; ?>\par
+        <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">\par
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">\par
+            <input type="submit" value="Criar Backup">\par
+        </form>\par
+        <br>\par
+        <a href="dashboard.php">Voltar ao Dashboard</a>\par
+    </div>\par
+</body>\par
+</html>\par
+----------------------------------------------------------\par
+\highlight1\b logout.php\par
+\highlight0\b0\par
+<?php\par
+session_start();\par
+session_unset();\par
+session_destroy();\par
+header('Location: index.php');\par
+exit();\par
+?>\par
+----------------------------------------------------------\par
+}
+ 
